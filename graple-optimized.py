@@ -14,7 +14,10 @@ from flask import Flask
 from flask import request
 from celery import Celery
 import pymongo
+import tarfile
 from pymongo import MongoClient
+from netCDF4 import Dataset
+from os import listdir
 
 # http://unix.stackexchange.com/questions/13093/add-update-a-file-to-an-existing-tar-gz-archive
 # http://unix.stackexchange.com/questions/46969/compress-a-folder-with-tar
@@ -31,19 +34,19 @@ collection = db.graple_collection
 
 # global variables and paths
 
-base_upload_path = "/datadrive/myproject/static"
-base_graple_path = "/datadrive/myproject/GRAPLE_SCRIPTS"
-base_GLM_path =  "/datadrive/myproject/GLM_Bins"
+base_upload_path = "/datadrive/Graple-flask/static"
+base_graple_path = "/datadrive/Graple-flask/GRAPLE_SCRIPTS"
+base_GLM_path =  "/datadrive/Graple-flask/GLM_Bins"
 
 
 @celery.task 
-def doTask(task):
+def doTask(task, rscript=''):
 
     if (task.split('$')[0] == "graple_run_batch"):
         dir_name = task.split('$')[1]
         filename = task.split('$')[2]
-        setup_graple(dir_name,filename)
-        execute_graple(dir_name)
+        setup_graple(dir_name,filename, rscript)
+        execute_graple(dir_name,rscript)
     elif (task.split('$')[0] == "run_sweep"):
         dir_name = task.split('$')[1]
         sweepstring = task.split('$')[2]
@@ -56,7 +59,7 @@ def doTask(task):
 def batch_id_generator(size=40, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
-def setup_graple(path,filename):
+def setup_graple(path,filename, rscript):
     copy_tree(base_graple_path,path)
     copy_tree(base_GLM_path,path)
     os.chdir(path)
@@ -70,9 +73,27 @@ def setup_graple(path,filename):
     subprocess.call(['tar','xvfz',filename])
     os.remove(filename)
     os.chdir(topdir)
+    if(rscript):
+        filename = rscript 
+        os.chdir("Scripts")
+        shutil.copy(os.path.join(topdir,filename),os.getcwd())
+        filterParamsDir = os.path.join(topdir, "Sims") 
+	shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
+	filesToMerge = ["FilterParams.txt", filename]
+        with open('PostProcessFilter.R', 'w') as outfile:
+            outfile.write("#!/usr/bin/Rscript\n")  
+	    for fname in filesToMerge:
+                with open(fname) as infile:
+                    for line in infile:
+                        if line.strip() == "#!/usr/bin/Rscript": 
+                            outfile.write("")
+                        else:
+                            outfile.write(line)
+		os.remove(fname)
+
+    os.chdir(topdir) 
     
-    
-def execute_graple(path):
+def execute_graple(path, rscript):
     os.chdir(path)
     submit_response_string=subprocess.check_output(['python','SubmitGrapleBatch.py'])
     submitIDList=[]
@@ -88,11 +109,15 @@ def execute_graple(path):
        
 def process_graple_results(path):
     os.chdir(path)
-    subprocess.call(['python','ProcessGrapleBatchOutputs.py'])
+    #subprocess.call(['python','ProcessGrapleBatchOutputs.py'])
     os.chdir(os.path.join(path,'Results'))
     # call tar czf output.tar.gz Sims
     #subprocess.call(['zip','-r','output.zip','Sims'])
-    subprocess.call(['tar','czf','output.tar.gz','Sims'])
+    #subprocess.call(['tar','czf','output.tar.gz','Sims'])
+    with tarfile.open('output.tar.gz', 'w:gz', compresslevel=9) as tar:
+        for f in listdir('.'):
+            if f.endswith('.bz2.tar'):
+                tar.add(f)
     os.chdir(path)
     
 def check_Job_status(path):
@@ -370,6 +395,21 @@ def upload_file():
         doTask.delay(task_desc)
         return jsonify(response)
 
+@app.route('/GraplePostProcessRun/<filtername>', methods= ['GET', 'POST'])
+def upload_postprocess_file(filtername):
+    global base_upload_path
+    if request.method == 'POST':
+        f = request.files['files']
+        filename = f.filename
+        response = {"uid":batch_id_generator()}
+        dir_name = os.path.join(base_upload_path,response["uid"])
+        os.mkdir(dir_name)
+        os.chdir(dir_name)
+        f.save(filename)
+        # should put the task in queue here and return.
+        task_desc = "graple_run_batch"+"$"+dir_name+"$"+filename
+        doTask.delay(task_desc, filtername)
+        return jsonify(response)
               
 @app.route('/GrapleRunMetOffset', methods= ['GET', 'POST'])
 def run_sweep():
@@ -389,6 +429,9 @@ def run_sweep():
         copy_tree(base_graple_path,topdir)
         copy_tree(base_GLM_path,topdir)
         subprocess.call(['python' , 'CreateWorkingFolders.py'])
+       	filename = "RunSimulation.R"
+    	os.chdir("Scripts")
+    	shutil.copy(os.path.join(topdir,filename),os.getcwd())      
         return jsonify(response)
       
 @app.route('/GrapleRunResults/<uid>', methods=['GET','POST'])
@@ -503,6 +546,12 @@ def make_dataframe(frame_req_string):
     if (exception):
         cmd_status["status"]= "Specified frame can't be constructed please check input arguments"
         return jsonify(cmd_status)      
+
+    # clean temp directory
+    temp=os.path.join(base_path,"temp")
+    if(os.path.isdir(temp)): 
+        shutil.rmtree(temp)
+        os.mkdir(temp) 
         
     # start extracting required variables
     os.chdir(os.path.join(base_path,'Results','Sims'))
@@ -510,9 +559,14 @@ def make_dataframe(frame_req_string):
         dir_name = "Sim"+each
         infile = os.path.join(base_path,'Results','Sims',dir_name,'Results','output.nc')
         outfile = os.path.join(base_path,'Results','Sims',dir_name,'Results','dataframe.nc')
-        if (self.ExtractDataFrame(infile,outfile,fields)):
+        if (ExtractDataFrame(infile,outfile,fields)):
+	    filename = "dataframe"+each+".nc"
+	    resultPath = os.path.join(temp, filename)
+	    shutil.copyfile(outfile, resultPath)            
             os.remove(infile)
-        
+
+    url = url_for('static',filename=outfile)  
+    cmd_status["download url"] = url 
     cmd_status["status"] = "request executed succesfully"
     return jsonify(cmd_status)
         
