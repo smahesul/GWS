@@ -77,20 +77,20 @@ def setup_graple(path,filename, rscript):
         filename = rscript 
         os.chdir("Scripts")
         shutil.copy(os.path.join(topdir,filename),os.getcwd())
-        filterParamsDir = os.path.join(topdir, "Sims") 
-	shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
-	filesToMerge = ["FilterParams.txt", filename]
+        filterParamsDir = os.path.join(topdir, "Sims", "FilterParams") 
+    shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
+    filesToMerge = ["FilterParams.txt", filename]
         with open('PostProcessFilter.R', 'w') as outfile:
             outfile.write("#!/usr/bin/Rscript\n")  
-	    for fname in filesToMerge:
+        for fname in filesToMerge:
                 with open(fname) as infile:
                     for line in infile:
                         if line.strip() == "#!/usr/bin/Rscript": 
                             outfile.write("")
                         else:
                             outfile.write(line)
-		os.remove(fname)
-
+        os.remove(fname)
+        shutil.rmtree(filterParamsDir) 
     os.chdir(topdir) 
     
 def execute_graple(path, rscript):
@@ -118,6 +118,7 @@ def process_graple_results(path):
         for f in listdir('.'):
             if f.endswith('.bz2.tar'):
                 tar.add(f)
+            #os.remove(f) 
     os.chdir(path)
     
 def check_Job_status(path):
@@ -395,6 +396,7 @@ def upload_file():
         doTask.delay(task_desc)
         return jsonify(response)
 
+@app.route('/GraplePostProcessRun', defaults={'filtername': None}, methods= ['GET', 'POST'])
 @app.route('/GraplePostProcessRun/<filtername>', methods= ['GET', 'POST'])
 def upload_postprocess_file(filtername):
     global base_upload_path
@@ -408,7 +410,11 @@ def upload_postprocess_file(filtername):
         f.save(filename)
         # should put the task in queue here and return.
         task_desc = "graple_run_batch"+"$"+dir_name+"$"+filename
-        doTask.delay(task_desc, filtername)
+        print(filtername)
+        if (filtername): 
+            doTask.delay(task_desc, filtername)
+        else:  
+            doTask.delay(task_desc)  
         return jsonify(response)
               
 @app.route('/GrapleRunMetOffset', methods= ['GET', 'POST'])
@@ -429,9 +435,9 @@ def run_sweep():
         copy_tree(base_graple_path,topdir)
         copy_tree(base_GLM_path,topdir)
         subprocess.call(['python' , 'CreateWorkingFolders.py'])
-       	filename = "RunSimulation.R"
-    	os.chdir("Scripts")
-    	shutil.copy(os.path.join(topdir,filename),os.getcwd())      
+        filename = "RunSimulation.R"
+        os.chdir("Scripts")
+        shutil.copy(os.path.join(topdir,filename),os.getcwd())      
         return jsonify(response)
       
 @app.route('/GrapleRunResults/<uid>', methods=['GET','POST'])
@@ -560,9 +566,9 @@ def make_dataframe(frame_req_string):
         infile = os.path.join(base_path,'Results','Sims',dir_name,'Results','output.nc')
         outfile = os.path.join(base_path,'Results','Sims',dir_name,'Results','dataframe.nc')
         if (ExtractDataFrame(infile,outfile,fields)):
-	    filename = "dataframe"+each+".nc"
-	    resultPath = os.path.join(temp, filename)
-	    shutil.copyfile(outfile, resultPath)            
+        filename = "dataframe"+each+".nc"
+        resultPath = os.path.join(temp, filename)
+        shutil.copyfile(outfile, resultPath)            
             os.remove(infile)
 
     url = url_for('static',filename=outfile)  
