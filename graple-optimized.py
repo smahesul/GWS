@@ -46,7 +46,7 @@ def doTask(task, rscript=''):
         dir_name = task.split('$')[1]
         filename = task.split('$')[2]
         setup_graple(dir_name,filename, rscript)
-        execute_graple(dir_name,rscript)
+        execute_graple(dir_name)
     elif (task.split('$')[0] == "run_sweep"):
         dir_name = task.split('$')[1]
         sweepstring = task.split('$')[2]
@@ -78,22 +78,22 @@ def setup_graple(path,filename, rscript):
         os.chdir("Scripts")
         shutil.copy(os.path.join(topdir,filename),os.getcwd())
         filterParamsDir = os.path.join(topdir, "Sims", "FilterParams") 
-    shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
-    filesToMerge = ["FilterParams.txt", filename]
+	shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
+	filesToMerge = ["FilterParams.txt", filename]
         with open('PostProcessFilter.R', 'w') as outfile:
             outfile.write("#!/usr/bin/Rscript\n")  
-        for fname in filesToMerge:
+	    for fname in filesToMerge:
                 with open(fname) as infile:
                     for line in infile:
                         if line.strip() == "#!/usr/bin/Rscript": 
                             outfile.write("")
                         else:
                             outfile.write(line)
-        os.remove(fname)
+		os.remove(fname)
         shutil.rmtree(filterParamsDir) 
     os.chdir(topdir) 
     
-def execute_graple(path, rscript):
+def execute_graple(path):
     os.chdir(path)
     submit_response_string=subprocess.check_output(['python','SubmitGrapleBatch.py'])
     submitIDList=[]
@@ -174,6 +174,7 @@ def ret_distribution_samples(distribution,samples,parameters):
 # handles sweep string cases.    
 def handle_sweep_run(dir_name,sweepstring):
         os.chdir(dir_name)
+        current_dir = os.getcwd() 
         base_params = sweepstring.split("*")
         # parse parameters
         base_file=base_params[1]
@@ -183,10 +184,33 @@ def handle_sweep_run(dir_name,sweepstring):
         base_iterations=int(base_params[5])
         base_steps = ((base_end-base_start)/base_iterations)
         # clean Sims directory
-        Sims_dir=os.path.join(dir_name,'Sims')
+        Sims_dir=os.path.join(current_dir, 'Sims')
         shutil.rmtree(Sims_dir)
         os.mkdir(Sims_dir)
-        
+  
+        if len(base_params) > 6:   
+            base_filename = base_params[6] 
+            os.chdir("Scripts")
+            shutil.copy(os.path.join(current_dir, 'base_folder',"sim.tar.gz"),os.getcwd())
+            subprocess.call(['tar','xvfz','sim.tar.gz'])
+            os.remove("sim.tar.gz") 
+            filterParamsDir = os.path.join(os.getcwd(), "FilterParams") 
+            shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
+            shutil.copy(os.path.join(current_dir, base_filename),os.getcwd())
+            filesToMerge = ["FilterParams.txt", base_filename]
+            with open('PostProcessFilter.R', 'w') as outfile:
+                outfile.write("#!/usr/bin/Rscript\n")  
+                for fname in filesToMerge:
+                    with open(fname) as infile:
+                        for line in infile:
+                            if line.strip() == "#!/usr/bin/Rscript": 
+                                outfile.write("")
+                            else:
+                                outfile.write(line)
+                os.remove(fname)
+            shutil.rmtree(filterParamsDir) 
+            os.chdir(current_dir)
+       
         for i in range(1,base_iterations+2):
             os.chdir(Sims_dir)
             new_dir="Sim"+ str(i)
@@ -416,9 +440,11 @@ def upload_postprocess_file(filtername):
         else:  
             doTask.delay(task_desc)  
         return jsonify(response)
-              
-@app.route('/GrapleRunMetOffset', methods= ['GET', 'POST'])
-def run_sweep():
+
+
+@app.route('/GrapleRunMetOffset', defaults={'filtername': None}, methods= ['GET', 'POST'])
+@app.route('/GrapleRunMetOffset/<filtername>', methods= ['GET', 'POST'])              
+def run_sweep(filtername):
     global base_upload_path
     if request.method == 'POST':
         f = request.files['files']
@@ -435,9 +461,10 @@ def run_sweep():
         copy_tree(base_graple_path,topdir)
         copy_tree(base_GLM_path,topdir)
         subprocess.call(['python' , 'CreateWorkingFolders.py'])
-        filename = "RunSimulation.R"
-        os.chdir("Scripts")
-        shutil.copy(os.path.join(topdir,filename),os.getcwd())      
+        if(filtername):      
+            os.chdir("Scripts")
+    	    shutil.copy(os.path.join(topdir,filtername),os.getcwd())      
+            os.chdir(topdir)
         return jsonify(response)
       
 @app.route('/GrapleRunResults/<uid>', methods=['GET','POST'])
@@ -566,9 +593,9 @@ def make_dataframe(frame_req_string):
         infile = os.path.join(base_path,'Results','Sims',dir_name,'Results','output.nc')
         outfile = os.path.join(base_path,'Results','Sims',dir_name,'Results','dataframe.nc')
         if (ExtractDataFrame(infile,outfile,fields)):
-        filename = "dataframe"+each+".nc"
-        resultPath = os.path.join(temp, filename)
-        shutil.copyfile(outfile, resultPath)            
+	    filename = "dataframe"+each+".nc"
+	    resultPath = os.path.join(temp, filename)
+	    shutil.copyfile(outfile, resultPath)            
             os.remove(infile)
 
     url = url_for('static',filename=outfile)  
