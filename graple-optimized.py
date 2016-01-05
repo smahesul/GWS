@@ -41,7 +41,6 @@ base_GLM_path =  "/datadrive/Graple-flask/GLM_Bins"
 
 @celery.task 
 def doTask(task, rscript=''):
-
     if (task.split('$')[0] == "graple_run_batch"):
         dir_name = task.split('$')[1]
         filename = task.split('$')[2]
@@ -52,10 +51,8 @@ def doTask(task, rscript=''):
         sweepstring = task.split('$')[2]
         handle_sweep_run(dir_name,sweepstring)
     elif (task.split('$')[0] == "graple_special_batch"):
-        handle_special_job(task)
+        handle_special_job(task, rscript)
         
-        
-
 def batch_id_generator(size=40, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
@@ -230,13 +227,14 @@ def handle_sweep_run(dir_name,sweepstring):
         execute_graple(dir_name)
 
 # handles the core of distribution sweep jobs.
-def handle_special_job(task):
+def handle_special_job(task, rscript):
     if (task.split('$')[0] == "graple_special_batch"):
         dir_name = task.split('$')[1]
         filename = task.split('$')[2]
         print dir_name
         print filename
-        
+      
+        current_dir = os.path.join(os.getcwd(), dir_name) 
         base_folder = os.path.join(dir_name,'base_folder')
         # unzip the zip file and read job_desc.csv
         os.chdir(base_folder)
@@ -278,6 +276,7 @@ def handle_special_job(task):
             subprocess.call(['tar','xvfz',filename])
             os.remove(filename)
             os.remove("job_desc.csv")
+            #shutil.rmtree(os.path.join(os.getcwd(), 'FilterParams')) 
             data=pandas.read_csv(base_file)
             for field in columns.keys():
                 if (((" "+field) in data.columns) or (field in data.columns)):
@@ -309,6 +308,29 @@ def handle_special_job(task):
         for row in summary:
             wr.writerow(row)
         result_summary.close()
+
+
+        if(rscript):
+            filename = rscript
+            scripts_dir =  os.path.join(current_dir,'Scripts')
+            os.chdir(scripts_dir)
+            shutil.copy(os.path.join(current_dir, filename),os.getcwd())
+            filterParamsDir = os.path.join(current_dir, 'base_folder', "FilterParams") 
+            shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
+            filesToMerge = ["FilterParams.txt", filename]
+            with open('PostProcessFilter.R', 'w') as outfile:
+                outfile.write("#!/usr/bin/Rscript\n")  
+                for fname in filesToMerge:
+                    with open(fname) as infile:
+                        for line in infile:
+                            if line.strip() == "#!/usr/bin/Rscript": 
+                                outfile.write("")
+                            else:
+                                outfile.write(line)
+                    os.remove(fname)
+            shutil.rmtree(filterParamsDir) 
+            os.chdir(current_dir)
+
         # execute graple job
         execute_graple(dir_name)
         return
@@ -338,9 +360,10 @@ def ExtractDataFrame(input_file,output_file,var_list):
         # close the output file
         outfile.close() 
         return True
-        
-@app.route('/GrapleRunMetSample', methods= ['GET', 'POST'])
-def special_batch():
+
+@app.route('/GrapleRunMetSample', defaults={'filtername': None}, methods= ['GET', 'POST'])        
+@app.route('/GrapleRunMetSample/<filtername>', methods= ['GET', 'POST'])        
+def special_batch(filtername):
     global base_upload_path
     if request.method == 'POST':
         f = request.files['files']
@@ -359,7 +382,10 @@ def special_batch():
         subprocess.call(['python' , 'CreateWorkingFolders.py'])
         # have to submit job to celery here--below method has to be handled by celery worker
         task_desc = "graple_special_batch"+"$"+dir_name+"$"+filename
-        doTask.delay(task_desc)
+        if(filtername):
+            doTask.delay(task_desc, filtername)
+        else:
+            doTask.delay(task_desc)
         response["status"] = "Job submitted to task queue"
         return jsonify(response)       
      
@@ -434,7 +460,6 @@ def upload_postprocess_file(filtername):
         f.save(filename)
         # should put the task in queue here and return.
         task_desc = "graple_run_batch"+"$"+dir_name+"$"+filename
-        print(filtername)
         if (filtername): 
             doTask.delay(task_desc, filtername)
         else:  
