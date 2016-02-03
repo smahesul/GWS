@@ -215,7 +215,8 @@ def handle_sweep_run(dir_name,sweepstring):
             if(os.path.exists(filterParamsDir)): 
                 shutil.rmtree(filterParamsDir) 
             os.chdir(current_dir)
-       
+
+        base_column = base_column.strip()        
         for i in range(1,base_iterations+2):
             os.chdir(Sims_dir)
             new_dir="Sim"+ str(i)
@@ -229,8 +230,9 @@ def handle_sweep_run(dir_name,sweepstring):
             os.remove("sim.tar.gz")
             data=pandas.read_csv(base_file)
             delta=base_start + (i-1)*base_steps
-            print ("i "+str(i)+" base_steps"+str(base_steps)+" base_start"+str(base_start)+" delta"+str(delta))
-            data[" "+base_column]=data[" "+base_column].apply(lambda val:val+delta)
+            print(str(base_column))
+            print ("i "+str(i)+" base_steps"+str(base_steps)+" base_start"+str(base_start)+" delta"+str(delta) + " file"+ str(base_column))
+	    data[base_column] = data[base_column].apply(lambda val:val+delta) 
             data.to_csv(base_file,index=False)
         execute_graple(dir_name)
 
@@ -442,25 +444,9 @@ def return_file(sweepstring):
         response = {"response":"Job put in the task queue"}    
         return jsonify(response)
         
-@app.route('/GrapleRun', methods= ['GET', 'POST'])
-def upload_file():
-    global base_upload_path
-    if request.method == 'POST':
-        f = request.files['files']
-        filename = f.filename
-        response = {"uid":batch_id_generator()}
-        dir_name = os.path.join(base_upload_path,response["uid"])
-        os.mkdir(dir_name)
-        os.chdir(dir_name)
-        f.save(filename)
-        # should put the task in queue here and return.
-        task_desc = "graple_run_batch"+"$"+dir_name+"$"+filename
-        doTask.delay(task_desc)
-        return jsonify(response)
-
-@app.route('/GraplePostProcessRun', defaults={'filtername': None}, methods= ['GET', 'POST'])
-@app.route('/GraplePostProcessRun/<filtername>', methods= ['GET', 'POST'])
-def upload_postprocess_file(filtername):
+@app.route('/GrapleRun', defaults={'filtername': None}, methods= ['GET', 'POST'])
+@app.route('/GrapleRun/<filtername>', methods= ['GET', 'POST'])
+def upload_file(filtername):
     global base_upload_path
     if request.method == 'POST':
         f = request.files['files']

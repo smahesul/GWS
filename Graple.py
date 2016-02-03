@@ -247,8 +247,9 @@ class Graple:
                 for file in os.listdir("."):
                     if (os.path.isdir(file)==False):
                         shutil.copy(os.path.join(os.getcwd(),file),os.path.join(os.getcwd(),'Results'))
-                if CONFIG['RunR'] == 'True':
-                    res = subprocess.call([rexe, '--vanilla', rscript])
+                if os.path.isfile(rscript): 
+                    if CONFIG['RunR'] == 'True':
+                        res = subprocess.call([rexe, '--vanilla', rscript])
                 os.chdir(topdir)
         
         with tarfile.open('Results.bz2.tar', 'w:bz2',compresslevel=9) as tar:
