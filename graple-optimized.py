@@ -73,10 +73,13 @@ def setup_graple(path,filename, rscript):
     if(rscript):
         filename = rscript 
         os.chdir("Scripts")
-        shutil.copy(os.path.join(topdir,filename),os.getcwd())
+        shutil.copy(os.path.join(topdir, "Filters", filename),os.getcwd())
         filterParamsDir = os.path.join(topdir, "Sims", "FilterParams") 
-	shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
-	filesToMerge = ["FilterParams.txt", filename]
+        if(os.path.exists(filterParamsDir)):	
+            shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
+	    filesToMerge = ["FilterParams.txt", filename]
+        else:
+            filesToMerge = [filename] 
         with open('PostProcessFilter.R', 'w') as outfile:
             outfile.write("#!/usr/bin/Rscript\n")  
 	    for fname in filesToMerge:
@@ -87,7 +90,8 @@ def setup_graple(path,filename, rscript):
                         else:
                             outfile.write(line)
 		os.remove(fname)
-        shutil.rmtree(filterParamsDir) 
+        if(os.path.exists(filterParamsDir)): 
+            shutil.rmtree(filterParamsDir) 
     os.chdir(topdir) 
     
 def execute_graple(path):
@@ -192,9 +196,12 @@ def handle_sweep_run(dir_name,sweepstring):
             subprocess.call(['tar','xvfz','sim.tar.gz'])
             os.remove("sim.tar.gz") 
             filterParamsDir = os.path.join(os.getcwd(), "FilterParams") 
-            shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
-            shutil.copy(os.path.join(current_dir, base_filename),os.getcwd())
-            filesToMerge = ["FilterParams.txt", base_filename]
+            shutil.copy(os.path.join(current_dir,"Filters", base_filename),os.getcwd())
+            if(os.path.exists(filterParamsDir)): 
+                shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
+                filesToMerge = ["FilterParams.txt", base_filename]
+            else:
+                filesToMerge = [base_filename] 
             with open('PostProcessFilter.R', 'w') as outfile:
                 outfile.write("#!/usr/bin/Rscript\n")  
                 for fname in filesToMerge:
@@ -205,7 +212,8 @@ def handle_sweep_run(dir_name,sweepstring):
                             else:
                                 outfile.write(line)
                 os.remove(fname)
-            shutil.rmtree(filterParamsDir) 
+            if(os.path.exists(filterParamsDir)): 
+                shutil.rmtree(filterParamsDir) 
             os.chdir(current_dir)
        
         for i in range(1,base_iterations+2):
@@ -314,10 +322,13 @@ def handle_special_job(task, rscript):
             filename = rscript
             scripts_dir =  os.path.join(current_dir,'Scripts')
             os.chdir(scripts_dir)
-            shutil.copy(os.path.join(current_dir, filename),os.getcwd())
+            shutil.copy(os.path.join(current_dir, "Filters", filename),os.getcwd())
             filterParamsDir = os.path.join(current_dir, 'base_folder', "FilterParams") 
-            shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
-            filesToMerge = ["FilterParams.txt", filename]
+            if(os.path.exists(filterParamsDir)): 
+                shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
+                filesToMerge = ["FilterParams.txt", filename]
+            else: 
+                filesToMerge = [filename] 
             with open('PostProcessFilter.R', 'w') as outfile:
                 outfile.write("#!/usr/bin/Rscript\n")  
                 for fname in filesToMerge:
@@ -328,7 +339,8 @@ def handle_special_job(task, rscript):
                             else:
                                 outfile.write(line)
                     os.remove(fname)
-            shutil.rmtree(filterParamsDir) 
+            if(os.path.exists(filterParamsDir)): 
+                shutil.rmtree(filterParamsDir) 
             os.chdir(current_dir)
 
         # execute graple job

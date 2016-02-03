@@ -33,7 +33,7 @@ sam@ubuntu:~/SimRoot/Sims$ curl -X GET "http://graple-service.cloudapp.net/Grapl
 ################################################################################
 DOWNLOAD ZIP FILE
 ################################################################################
-sam@ubuntu:~/SimRoot/Sims$ wget "http://graple-service.cloudapp.net/O2SKIHPL6GGMXTU39TH7T1U9CDXYVG5M4TF303YV/Results/output.zip"
+sam@ubuntu:~/SimRoot/Sims$ wget "http://graple.acis.ufl.edu/72FTN52QIMJSSUAP2PHLZT57KD1B1PTKOL5DDKG9/Results/output.tar.gz"
 --2015-06-12 09:55:01--  http://graple-service.cloudapp.net/O2SKIHPL6GGMXTU39TH7T1U9CDXYVG5M4TF303YV/Results/output.zip
 Connecting to 128.227.150.20:5000... connected.
 HTTP request sent, awaiting response... 200 OK
@@ -165,7 +165,7 @@ sam@ubuntu:~/panda_trial$ curl -X POST -F files=@special_sim.zip "http://graple-
 ################################################################################
 Check job status
 ################################################################################
-sam@ubuntu:~/panda_trial$ curl -X GET "http://graple-service.cloudapp.net/GrapleRunStatus/K8JOFC6CB2EYK6BL3OBIJDRCR0T3LAS7ZD35K6CV"
+sam@ubuntu:~/panda_trial$ curl -X GET "http://graple.acis.ufl.edu/GrapleRunStatus/8BN2B5KPNAXYZOYHWCQ276ZESF18UV1L60OFUAVR"
 {
   "curr_status": "processing"
 }sam@ubuntu:~/panda_trial$ curl -X GET "http://graple-service.cloudapp.net/GrapleRunStatus/K8JOFC6CB2EYK6BL3OBIJDRCR0T3LAS7ZD35K6CV"
@@ -186,7 +186,7 @@ sam@ubuntu:~/panda_trial$curl -X GET "http://graple-service.cloudapp.net/GrapleR
 ################################################################################
 Retrieve results  for distribution job
 ################################################################################
-sam@ubuntu:~/panda_trial$ wget "http://graple-service.cloudapp.net/K8JOFC6CB2EYK6BL3OBIJDRCR0T3LAS7ZD35K6CV/Results/output.zip"
+sam@ubuntu:~/panda_trial$ wget "http://graple.acis.ufl.edu/1I0KB969TZ3O1540T24ZLZKLM9G01V0PSAT7XIKB/Results/output.tar.gz"
 --2015-07-22 06:34:41--  http://graple-service.cloudapp.net/K8JOFC6CB2EYK6BL3OBIJDRCR0T3LAS7ZD35K6CV/Results/output.zip
 Connecting to 128.227.150.20:5000... connected.
 HTTP request sent, awaiting response... 200 OK
@@ -214,7 +214,7 @@ curl -X POST  "http://graple-service.cloudapp.net/TriggerSimulation/0HWNBMSITD4F
   "response": "Job put in the task queue"
 }
 ################################################################################
-curl -X GET "http://graple-service.cloudapp.net/GrapleAbort/0HWNBMSITD4FU03I0SSHQHDXF52T4ATH40Z4VCN1"
+curl -X GET "http://graple.acis.ufl.edu/GrapleAbort/ESVUDELV7D447CD0D05KY1KD9KRFB1DJ5WIL6PQO"
 {
   "curr_status": "All jobs marked for removal"
 }
