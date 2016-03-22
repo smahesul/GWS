@@ -18,10 +18,10 @@ import tarfile
 from pymongo import MongoClient
 from netCDF4 import Dataset
 from os import listdir
+import json
 
 # http://unix.stackexchange.com/questions/13093/add-update-a-file-to-an-existing-tar-gz-archive
 # http://unix.stackexchange.com/questions/46969/compress-a-folder-with-tar
-
  
 app = Flask(__name__, static_url_path='')
 app.config['CELERY_BROKER_URL'] = 'amqp://'
@@ -34,10 +34,9 @@ collection = db.graple_collection
 
 # global variables and paths
 
-base_upload_path = "/datadrive/Graple-flask/static"
-base_graple_path = "/datadrive/Graple-flask/GRAPLE_SCRIPTS"
-base_GLM_path =  "/datadrive/Graple-flask/GLM_Bins"
-
+base_upload_path = '/home/grapler-cert/datadrive/static'
+base_graple_path = '/home/grapler-cert/datadrive/GRAPLE_SCRIPTS'
+base_GLM_path    = '/home/grapler-cert/datadrive/GLM_Bins'
 
 @celery.task 
 def doTask(task, rscript=''):
@@ -74,24 +73,7 @@ def setup_graple(path,filename, rscript):
         filename = rscript 
         os.chdir("Scripts")
         shutil.copy(os.path.join(topdir, "Filters", filename),os.getcwd())
-        filterParamsDir = os.path.join(topdir, "Sims", "FilterParams") 
-        if(os.path.exists(filterParamsDir)):	
-            shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
-	    filesToMerge = ["FilterParams.txt", filename]
-        else:
-            filesToMerge = [filename] 
-        with open('PostProcessFilter.R', 'w') as outfile:
-            outfile.write("#!/usr/bin/Rscript\n")  
-	    for fname in filesToMerge:
-                with open(fname) as infile:
-                    for line in infile:
-                        if line.strip() == "#!/usr/bin/Rscript": 
-                            outfile.write("")
-                        else:
-                            outfile.write(line)
-		os.remove(fname)
-        if(os.path.exists(filterParamsDir)): 
-            shutil.rmtree(filterParamsDir) 
+        os.rename(filename, 'PostProcessFilter.R')
     os.chdir(topdir) 
     
 def execute_graple(path):
@@ -195,25 +177,8 @@ def handle_sweep_run(dir_name,sweepstring):
             shutil.copy(os.path.join(current_dir, 'base_folder',"sim.tar.gz"),os.getcwd())
             subprocess.call(['tar','xvfz','sim.tar.gz'])
             os.remove("sim.tar.gz") 
-            filterParamsDir = os.path.join(os.getcwd(), "FilterParams") 
             shutil.copy(os.path.join(current_dir,"Filters", base_filename),os.getcwd())
-            if(os.path.exists(filterParamsDir)): 
-                shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
-                filesToMerge = ["FilterParams.txt", base_filename]
-            else:
-                filesToMerge = [base_filename] 
-            with open('PostProcessFilter.R', 'w') as outfile:
-                outfile.write("#!/usr/bin/Rscript\n")  
-                for fname in filesToMerge:
-                    with open(fname) as infile:
-                        for line in infile:
-                            if line.strip() == "#!/usr/bin/Rscript": 
-                                outfile.write("")
-                            else:
-                                outfile.write(line)
-                os.remove(fname)
-            if(os.path.exists(filterParamsDir)): 
-                shutil.rmtree(filterParamsDir) 
+            os.rename(base_filename, 'PostProcessFilter.R')
             os.chdir(current_dir)
 
         base_column = base_column.strip()        
@@ -229,6 +194,7 @@ def handle_sweep_run(dir_name,sweepstring):
             #os.remove("sim.zip")
             os.remove("sim.tar.gz")
             data=pandas.read_csv(base_file)
+            data = data.rename(columns=lambda x: x.strip()) 
             delta=base_start + (i-1)*base_steps
             print(str(base_column))
             print ("i "+str(i)+" base_steps"+str(base_steps)+" base_start"+str(base_start)+" delta"+str(delta) + " file"+ str(base_column))
@@ -288,6 +254,7 @@ def handle_special_job(task, rscript):
             os.remove("job_desc.csv")
             #shutil.rmtree(os.path.join(os.getcwd(), 'FilterParams')) 
             data=pandas.read_csv(base_file)
+            data = data.rename(columns=lambda x: x.strip())  
             for field in columns.keys():
                 if (((" "+field) in data.columns) or (field in data.columns)):
                     # handle variations in filed names in csv file, some field names have leading spaces.
@@ -325,24 +292,7 @@ def handle_special_job(task, rscript):
             scripts_dir =  os.path.join(current_dir,'Scripts')
             os.chdir(scripts_dir)
             shutil.copy(os.path.join(current_dir, "Filters", filename),os.getcwd())
-            filterParamsDir = os.path.join(current_dir, 'base_folder', "FilterParams") 
-            if(os.path.exists(filterParamsDir)): 
-                shutil.copy(os.path.join(filterParamsDir, "FilterParams.txt"),os.getcwd())
-                filesToMerge = ["FilterParams.txt", filename]
-            else: 
-                filesToMerge = [filename] 
-            with open('PostProcessFilter.R', 'w') as outfile:
-                outfile.write("#!/usr/bin/Rscript\n")  
-                for fname in filesToMerge:
-                    with open(fname) as infile:
-                        for line in infile:
-                            if line.strip() == "#!/usr/bin/Rscript": 
-                                outfile.write("")
-                            else:
-                                outfile.write(line)
-                    os.remove(fname)
-            if(os.path.exists(filterParamsDir)): 
-                shutil.rmtree(filterParamsDir) 
+            os.rename(filename, 'PostProcessFilter.R')
             os.chdir(current_dir)
 
         # execute graple job
@@ -575,7 +525,17 @@ def return_service_status():
         localtime = time.asctime( time.localtime(time.time()) )
         service_status["time"]=localtime
         return jsonify(service_status)
-        
+
+@app.route('/GrapleGetPPOLibrary', methods=['GET'])
+def get_PPOLibrary_scripts():
+    global base_graple_path
+    filesList = [] 
+    if request.method == 'GET':
+        scriptsDir = os.path.join(base_graple_path, "Filters")
+        if(os.path.exists(scriptsDir)):
+            filesList = os.listdir(scriptsDir) 
+    return json.dumps(filesList)        
+
 @app.route('/return_dataframe/<frame_req_string>', methods=['GET'])        
 def make_dataframe(frame_req_string):
     global base_upload_path
