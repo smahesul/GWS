@@ -325,8 +325,8 @@ def ExtractDataFrame(input_file,output_file,var_list):
         outfile.close() 
         return True
 
-@app.route('/GrapleRunMetSample', defaults={'filtername': None}, methods= ['GET', 'POST'])        
-@app.route('/GrapleRunMetSample/<filtername>', methods= ['GET', 'POST'])        
+@app.route('/GrapleRunMetSample', defaults={'filtername': None}, methods= ['GET', 'POST'])
+@app.route('/GrapleRunMetSample/<filtername>', methods= ['GET', 'POST'])
 def special_batch(filtername):
     global base_upload_path
     if request.method == 'POST':
@@ -416,7 +416,7 @@ def upload_file(filtername):
 
 
 @app.route('/GrapleRunMetOffset', defaults={'filtername': None}, methods= ['GET', 'POST'])
-@app.route('/GrapleRunMetOffset/<filtername>', methods= ['GET', 'POST'])              
+@app.route('/GrapleRunMetOffset/<filtername>', methods= ['GET', 'POST'])
 def run_sweep(filtername):
     global base_upload_path
     if request.method == 'POST':
@@ -534,58 +534,7 @@ def get_PPOLibrary_scripts():
         scriptsDir = os.path.join(base_graple_path, "Filters")
         if(os.path.exists(scriptsDir)):
             filesList = os.listdir(scriptsDir) 
-    return json.dumps(filesList)        
-
-@app.route('/return_dataframe/<frame_req_string>', methods=['GET'])        
-def make_dataframe(frame_req_string):
-    global base_upload_path
-    uid = frame_req_string.split("*")[0]
-    fields = frame_req_string.split("*")[2]
-    base_path=os.path.join(base_upload_path,uid)
-    if "-" in frame_req_string.split("*")[1]:
-        start = int(frame_req_string.split("*")[1].split("-")[0])
-        end = int(frame_req_string.split("*")[1].split("-")[1])
-        requested_frame_indices = map(str,range(start,end+1)) 
-    else:
-        requested_frame_indices = frame_req_string.split("*")[1].split(",")
-    # get number of Sims
-    num_sims = 0
-    for each in os.listdir(os.path.join(base_path,'Results','Sims')):
-        num_sims = num_sims + 1
-    num_sims = num_sims - 2
-    # do sanity check
-    exception = False
-    for each in requested_frame_indices:
-        if (int(each) > num_sims):
-            exception = True
-    cmd_status = {}
-    if (exception):
-        cmd_status["status"]= "Specified frame can't be constructed please check input arguments"
-        return jsonify(cmd_status)      
-
-    # clean temp directory
-    temp=os.path.join(base_path,"temp")
-    if(os.path.isdir(temp)): 
-        shutil.rmtree(temp)
-        os.mkdir(temp) 
-        
-    # start extracting required variables
-    os.chdir(os.path.join(base_path,'Results','Sims'))
-    for each in requested_frame_indices:
-        dir_name = "Sim"+each
-        infile = os.path.join(base_path,'Results','Sims',dir_name,'Results','output.nc')
-        outfile = os.path.join(base_path,'Results','Sims',dir_name,'Results','dataframe.nc')
-        if (ExtractDataFrame(infile,outfile,fields)):
-	    filename = "dataframe"+each+".nc"
-	    resultPath = os.path.join(temp, filename)
-	    shutil.copyfile(outfile, resultPath)            
-            os.remove(infile)
-
-    url = url_for('static',filename=outfile)  
-    cmd_status["download url"] = url 
-    cmd_status["status"] = "request executed succesfully"
-    return jsonify(cmd_status)
-        
+    return json.dumps(filesList)                
 
 if __name__ == '__main__':
     app.debug = True
