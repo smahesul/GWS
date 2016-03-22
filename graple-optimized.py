@@ -325,8 +325,8 @@ def ExtractDataFrame(input_file,output_file,var_list):
         outfile.close() 
         return True
 
-@app.route('/GrapleRunMetSample', defaults={'filtername': None}, methods= ['GET', 'POST'])
-@app.route('/GrapleRunMetSample/<filtername>', methods= ['GET', 'POST'])
+@app.route('/GrapleRunMetSample', defaults={'filtername': None}, methods= ['GET', 'POST'])        
+@app.route('/GrapleRunMetSample/<filtername>', methods= ['GET', 'POST'])        
 def special_batch(filtername):
     global base_upload_path
     if request.method == 'POST':
@@ -416,7 +416,7 @@ def upload_file(filtername):
 
 
 @app.route('/GrapleRunMetOffset', defaults={'filtername': None}, methods= ['GET', 'POST'])
-@app.route('/GrapleRunMetOffset/<filtername>', methods= ['GET', 'POST'])
+@app.route('/GrapleRunMetOffset/<filtername>', methods= ['GET', 'POST'])              
 def run_sweep(filtername):
     global base_upload_path
     if request.method == 'POST':
@@ -526,7 +526,7 @@ def return_service_status():
         service_status["time"]=localtime
         return jsonify(service_status)
 
-@app.route('/GrapleGetPPOLibrary', methods=['GET'])
+@app.route('/GrapleListFilters', methods=['GET'])
 def get_PPOLibrary_scripts():
     global base_graple_path
     filesList = [] 
@@ -534,7 +534,15 @@ def get_PPOLibrary_scripts():
         scriptsDir = os.path.join(base_graple_path, "Filters")
         if(os.path.exists(scriptsDir)):
             filesList = os.listdir(scriptsDir) 
-    return json.dumps(filesList)                
+    return json.dumps(filesList)        
+
+@app.route('/GrapleGetVersion', methods=['GET'])
+def get_version():
+    version = {}
+    if request.method == 'GET':
+        #code for getting the current version of graple service
+        version = {"version": "1.0.2"} 
+    return jsonify(version)
 
 if __name__ == '__main__':
     app.debug = True
